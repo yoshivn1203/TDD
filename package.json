@@ -23,6 +23,8 @@
     "supertest": "^4.0.2"
   },
   "dependencies": {
-    "express": "^4.17.1"
+    "express": "^4.17.1",
+    "sequelize": "^6.19.2",
+    "sqlite3": "^5.0.8"
   }
 }
