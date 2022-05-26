@@ -246,3 +246,68 @@ describe('User Registration', () => {
     expect(users.length).toBe(0);
   });
 });
+
+describe('Account activation', () => {
+  it('activates the account when correct token is sent', async () => {
+    await postUser();
+    let users = await User.findAll();
+    const token = users[0].activationToken;
+
+    await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    users = await User.findAll();
+    expect(users[0].inactive).toBe(false);
+  });
+  it('remove the token from user table after succesful activation', async () => {
+    await postUser();
+    let users = await User.findAll();
+    const token = users[0].activationToken;
+
+    await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    users = await User.findAll();
+    expect(users[0].activationToken).toBeFalsy();
+  });
+  it('does not activate the account when the token is wrong', async () => {
+    await postUser();
+    const token = 'this-token-does-not-exist';
+
+    await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    const users = await User.findAll();
+    expect(users[0].inactive).toBe(true);
+  });
+  it('return bad request when the token is wrong', async () => {
+    await postUser();
+    const token = 'this-token-does-not-exist';
+
+    const response = await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    expect(response.status).toBe(400);
+  });
+  it('send message when account is either activate or the token is invalid', async () => {
+    await postUser();
+    const token = 'this-token-does-not-exist';
+
+    const response = await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    expect(response.body.message).toBe(
+      'account is either activate or the token is invalid'
+    );
+  });
+  it('send message when activation is successful', async () => {
+    await postUser();
+    let users = await User.findAll();
+    const token = users[0].activationToken;
+
+    const response = await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    expect(response.body.message).toBe('account activativated successfuly');
+  });
+});
