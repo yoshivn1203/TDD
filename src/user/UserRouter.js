@@ -3,7 +3,6 @@ const express = require('express');
 const router = express.Router();
 const { check, validationResult } = require('express-validator');
 const UserService = require('./UserService');
-const User = require('./User');
 
 router.post(
   '/api/1.0/users',
@@ -51,7 +50,6 @@ router.post(
       await UserService.save(req.body);
       return res.send({ message: 'User created' });
     } catch (err) {
-      console.log(err);
       return res.status(502).send({ message: err.message });
     }
   }
