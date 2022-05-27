@@ -310,4 +310,56 @@ describe('Account activation', () => {
       .send();
     expect(response.body.message).toBe('account activativated successfuly');
   });
+
+  it('return Validation Failure message in error response body when validation failed', async () => {
+    const response = await postUser({
+      username: 'use',
+      email: 'user1@mail.com',
+      password: 'P4ssword'
+    });
+    const { body } = response;
+    expect(body.message).toBe('Validation Failure');
+  });
+});
+
+describe('Error Model', () => {
+  it('returns path, timestamp, message and validationErrors in response when validation failure', async () => {
+    const response = await postUser({ ...validUser, username: null });
+    const { body } = response;
+    expect(Object.keys(body)).toEqual([
+      'path',
+      'timestamp',
+      'message',
+      'validationErrors'
+    ]);
+  });
+
+  it('returns path, timestamp, message when request fail other than validation failure', async () => {
+    const token = 'this-token-does-not-exist';
+    const response = await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    const { body } = response;
+    expect(Object.keys(body)).toEqual(['path', 'timestamp', 'message']);
+  });
+
+  it('returns path in error body', async () => {
+    const token = 'this-token-does-not-exist';
+    const response = await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    const { body } = response;
+    expect(body.path).toBe(`/api/1.0/users/token/${token}`);
+  });
+  it('returns timestamp in milliseconds within 5 seconds value in error body', async () => {
+    const nowInMillis = new Date().getTime();
+    const fiveSecondLater = nowInMillis + 5 * 1000;
+    const token = 'this-token-does-not-exist';
+    const response = await request(app)
+      .post(`/api/1.0/users/token/${token}`)
+      .send();
+    const { body } = response;
+    expect(body.timestamp).toBeGreaterThan(nowInMillis);
+    expect(body.timestamp).toBeLessThan(fiveSecondLater);
+  });
 });

@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { check, validationResult } = require('express-validator');
 const UserService = require('./UserService');
+const ValidationException = require('../error/ValidationException');
 
 router.post(
   '/api/1.0/users',
@@ -37,30 +38,33 @@ router.post(
       'Password must have at least 1 lowercase 1 uppercase and 1 number'
     ),
 
-  async (req, res) => {
+  async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      const validationErrors = {};
-      errors
-        .array()
-        .forEach(error => (validationErrors[error.param] = error.msg));
-      return res.status(400).send({ validationErrors: validationErrors });
+      // const validationErrors = {};
+      // errors
+      //   .array()
+      //   .forEach(error => (validationErrors[error.param] = error.msg));
+      // return res.status(400).send({ validationErrors: validationErrors });
+      return next(new ValidationException(errors));
     }
     try {
       await UserService.save(req.body);
       return res.send({ message: 'User created' });
     } catch (err) {
-      return res.status(502).send({ message: err.message });
+      // return res.status(502).send({ message: err.message });
+      next(err);
     }
   }
 );
-router.post('/api/1.0/users/token/:token', async (req, res) => {
+router.post('/api/1.0/users/token/:token', async (req, res, next) => {
   const { token } = req.params;
   try {
     await UserService.activate(token);
+    return res.send({ message: 'account activativated successfuly' });
   } catch (err) {
-    return res.status(400).send({ message: err.message });
+    // return res.status(400).send({ message: err.message });
+    next(err);
   }
-  res.send({ message: 'account activativated successfuly' });
 });
 module.exports = router;
