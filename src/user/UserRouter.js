@@ -2,9 +2,12 @@ const express = require('express');
 
 const router = express.Router();
 const { check, validationResult } = require('express-validator');
+
 const UserService = require('./UserService');
 const ValidationException = require('../error/ValidationException');
+const ForbidenException = require('../error/ForbidenException');
 const pagination = require('../middleware/pagination');
+const basicAuthentication = require('../middleware/basicAuthentication');
 
 router.post(
   '/api/1.0/users',
@@ -69,11 +72,16 @@ router.post('/api/1.0/users/token/:token', async (req, res, next) => {
   }
 });
 
-router.get('/api/1.0/users', pagination, async (req, res) => {
-  const { size, page } = req.pagination;
-  const users = await UserService.getUsers(page, size);
-  res.send(users);
-});
+router.get(
+  '/api/1.0/users',
+  pagination,
+  basicAuthentication,
+  async (req, res) => {
+    const { size, page } = req.pagination;
+    const users = await UserService.getUsers(page, size, req.authenticatedUser);
+    res.send(users);
+  }
+);
 
 router.get('/api/1.0/users/:id', async (req, res, next) => {
   try {
@@ -84,4 +92,20 @@ router.get('/api/1.0/users/:id', async (req, res, next) => {
     next(err);
   }
 });
+
+router.put(
+  '/api/1.0/users/:id',
+  basicAuthentication,
+  async (req, res, next) => {
+    if (
+      !req.authenticatedUser ||
+      req.authenticatedUser.id !== req.params.id * 1
+    ) {
+      return next(new ForbidenException('Unauthorized User Update'));
+    }
+    await UserService.updateUser(req.params.id, req.body);
+    return res.send();
+  }
+);
+
 module.exports = router;
