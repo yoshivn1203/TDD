@@ -5,7 +5,6 @@ const { check, validationResult } = require('express-validator');
 const UserService = require('./UserService');
 const ValidationException = require('../error/ValidationException');
 const pagination = require('../middleware/pagination');
-const UserNotFoundException = require('./UserNotFoundException');
 
 router.post(
   '/api/1.0/users',

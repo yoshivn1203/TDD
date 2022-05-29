@@ -36,9 +36,9 @@ afterAll(async () => {
   await server.close();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   simulateSmtpFailure = false;
-  return User.destroy({ truncate: true });
+  await User.destroy({ truncate: true });
 });
 
 const validUser = {
