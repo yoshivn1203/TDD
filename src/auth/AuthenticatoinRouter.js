@@ -6,6 +6,7 @@ const AuthenticationException = require('./AuthenticationException');
 const ForbidenException = require('../error/ForbidenException');
 const bcrypt = require('bcrypt');
 const { check, validationResult } = require('express-validator');
+const TokenService = require('./TokenService');
 
 router.post(
   '/api/1.0/auth',
@@ -29,11 +30,12 @@ router.post(
     if (user.inactive) {
       return next(new ForbidenException());
     }
+
     res.send({
       id: user.id,
-      username: user.username
+      username: user.username,
+      token: TokenService.createToken(user)
     });
   }
 );
-
 module.exports = router;
