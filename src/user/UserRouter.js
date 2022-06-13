@@ -108,8 +108,25 @@ router.delete('/api/1.0/users/:id', async (req, res, next) => {
   return res.send();
 });
 
-// router.delete('/api/1.0/users/:id', (req, res) => {
-//   res.status(403).send();
-// });
+router.post(
+  '/api/1.0/password-reset',
+  check('email')
+    .isEmail()
+    .withMessage('Email is not valid'),
+  async (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return next(new ValidationException(errors));
+    }
+    try {
+      await UserService.passwordResetRequest(req.body.email);
+      return res.send({
+        message: 'Check your e-mail for resetting your password'
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 module.exports = router;

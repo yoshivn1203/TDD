@@ -160,7 +160,7 @@ describe('Get User', () => {
   });
   it('return message when user not found', async () => {
     const response = await getUser();
-    expect(response.body.message).toBe('User not found');
+    expect(response.body.message).toBe('not found');
   });
   it('return proper error body when user not found', async () => {
     const nowInMillis = new Date().getTime();
