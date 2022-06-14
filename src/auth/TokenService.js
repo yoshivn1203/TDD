@@ -32,6 +32,10 @@ const deleteToken = async token => {
   await Token.destroy({ where: { token: token } });
 };
 
+const deleteTokenByUserId = async userId => {
+  await Token.destroy({ where: { userId: userId } });
+};
+
 const scheduleCleanup = () => {
   setInterval(async () => {
     const oneWeekAgo = new Date(Date.now() - ONE_WEEK_IN_MILLIS);
@@ -43,4 +47,10 @@ const scheduleCleanup = () => {
   }, 60 * 60 * 1000);
 };
 
-module.exports = { createToken, verify, deleteToken, scheduleCleanup };
+module.exports = {
+  createToken,
+  verify,
+  deleteToken,
+  scheduleCleanup,
+  deleteTokenByUserId
+};

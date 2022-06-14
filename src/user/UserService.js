@@ -8,7 +8,7 @@ const NotFoundException = require('../error/NotFoundException');
 const generator = require('../shared/generator');
 
 const User = require('./User');
-const Token = require('../auth/Token');
+const TokenService = require('../auth/TokenService');
 
 const save = async body => {
   const { username, email, password } = body;
@@ -85,6 +85,7 @@ const getUSer = async id => {
 const updateUser = async (id, updatedBody) => {
   const user = await User.findOne({ where: { id: id } });
   user.username = updatedBody.username;
+  user.image = updatedBody.image;
   await user.save();
 };
 const deleteUser = async id => {
@@ -98,7 +99,31 @@ const passwordResetRequest = async email => {
   }
   user.passwordResetToken = generator.randomString(16);
   await user.save();
+  try {
+    await EmailService.sendPasswordReset(email, user.passwordResetToken);
+  } catch (err) {
+    throw new EmailException();
+  }
 };
+
+const findByPasswordResetToken = token => {
+  return User.findOne({
+    where: { passwordResetToken: token }
+  });
+};
+
+const updatePassword = async updateRequest => {
+  const user = await findByPasswordResetToken(updateRequest.passwordResetToken);
+  const hash = await bcrypt.hash(updateRequest.password, 10);
+  user.password = hash;
+  user.passwordResetToken = null;
+  user.inactive = false;
+  user.activationToken = null;
+  await user.save();
+
+  await TokenService.deleteTokenByUserId(user.id);
+};
+
 module.exports = {
   save,
   findByEmail,
@@ -107,5 +132,7 @@ module.exports = {
   getUSer,
   updateUser,
   deleteUser,
-  passwordResetRequest
+  passwordResetRequest,
+  updatePassword,
+  findByPasswordResetToken
 };
