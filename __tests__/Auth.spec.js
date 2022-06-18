@@ -58,7 +58,12 @@ describe('Authentication', () => {
     });
     expect(response.body.id).toBe(user.id);
     expect(response.body.username).toBe(user.username);
-    expect(Object.keys(response.body)).toEqual(['id', 'username', 'token']);
+    expect(Object.keys(response.body)).toEqual([
+      'id',
+      'username',
+      'token',
+      'image'
+    ]);
   });
 
   it('return 401 when user does not exist', async () => {

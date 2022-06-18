@@ -6,6 +6,7 @@ const EmailException = require('../email/EmailException');
 const InvalidTokenException = require('../user/InvalidTokenException');
 const NotFoundException = require('../error/NotFoundException');
 const generator = require('../shared/generator');
+const FileService = require('../file/FileService');
 
 const User = require('./User');
 const TokenService = require('../auth/TokenService');
@@ -59,7 +60,7 @@ const getUsers = async (page, size, authenticatedUser) => {
         [Op.not]: id
       }
     },
-    attributes: ['id', 'username', 'email'],
+    attributes: ['id', 'username', 'email', 'image'],
     limit: size,
     offset: page * size
   });
@@ -74,7 +75,7 @@ const getUsers = async (page, size, authenticatedUser) => {
 const getUSer = async id => {
   const user = await User.findOne({
     where: { id: id, inactive: false },
-    attributes: ['id', 'username', 'email']
+    attributes: ['id', 'username', 'email', 'image']
   });
   if (!user) {
     throw new NotFoundException();
@@ -85,8 +86,21 @@ const getUSer = async id => {
 const updateUser = async (id, updatedBody) => {
   const user = await User.findOne({ where: { id: id } });
   user.username = updatedBody.username;
-  user.image = updatedBody.image;
+
+  if (updatedBody.image) {
+    if (user.image) {
+      await FileService.deleteProfileImage(user.image);
+    }
+    user.image = await FileService.saveProfileImage(updatedBody.image);
+  }
+
   await user.save();
+  return {
+    id: id,
+    username: user.username,
+    email: user.email,
+    image: user.image
+  };
 };
 const deleteUser = async id => {
   await User.destroy({ where: { id: id } });

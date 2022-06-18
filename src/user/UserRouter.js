@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const { check, validationResult } = require('express-validator');
 
+const FileService = require('../file/FileService');
+
 const UserService = require('./UserService');
 const ValidationException = require('../error/ValidationException');
 const ForbidenException = require('../error/ForbidenException');
@@ -87,16 +89,46 @@ router.get('/api/1.0/users/:id', async (req, res, next) => {
   }
 });
 
-router.put('/api/1.0/users/:id', async (req, res, next) => {
-  if (
-    !req.authenticatedUser ||
-    req.authenticatedUser.id !== req.params.id * 1
-  ) {
-    return next(new ForbidenException('Unauthorized User Update'));
+router.put(
+  '/api/1.0/users/:id',
+  check('username')
+    .notEmpty()
+    .withMessage('Username cannot be null')
+    .bail()
+    .isLength({ min: 4, max: 32 })
+    .withMessage('Username must have min 4 and max 32 characters'),
+  check('image').custom(async imageAsBase64String => {
+    if (!imageAsBase64String) {
+      return true;
+    }
+    const buffer = Buffer.from(imageAsBase64String, 'base64');
+    if (FileService.isLargerThan2MB(buffer)) {
+      throw new Error('Your profile image can not be larger than 2 Mb');
+    }
+
+    const supportedType = await FileService.isSupportedFileType(buffer);
+
+    if (!supportedType) {
+      throw new Error('Unsupported image file');
+    }
+    return true;
+  }),
+  async (req, res, next) => {
+    if (
+      !req.authenticatedUser ||
+      req.authenticatedUser.id !== req.params.id * 1
+    ) {
+      return next(new ForbidenException('Unauthorized User Update'));
+    }
+
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return next(new ValidationException(errors));
+    }
+    const user = await UserService.updateUser(req.params.id, req.body);
+    return res.send(user);
   }
-  await UserService.updateUser(req.params.id, req.body);
-  return res.send();
-});
+);
 router.delete('/api/1.0/users/:id', async (req, res, next) => {
   if (
     !req.authenticatedUser ||

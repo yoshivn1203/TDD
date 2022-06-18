@@ -14,5 +14,7 @@ module.exports = {
       user: 'alexie.zemlak12@ethereal.email',
       pass: 'cPDR96XU8AHJ1YAVXT'
     }
-  }
+  },
+  uploadDir: 'uploads-dev',
+  profileDir: 'profile'
 };

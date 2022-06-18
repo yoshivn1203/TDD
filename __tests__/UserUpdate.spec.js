@@ -5,6 +5,10 @@ const path = require('path');
 const app = require('../src/app');
 const User = require('../src/user/User');
 const sequelize = require('../src/config/database');
+const config = require('config');
+
+const { uploadDir, profileDir } = config;
+const profileDirectory = path.join('.', uploadDir, profileDir);
 
 beforeAll(async () => {
   await sequelize.sync();
@@ -12,6 +16,13 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await User.destroy({ truncate: { cascade: true } });
+});
+
+afterAll(async () => {
+  const files = fs.readdirSync(profileDirectory);
+  for (const file of files) {
+    fs.unlinkSync(path.join(profileDirectory, file));
+  }
 });
 
 const activeUser = {
@@ -53,6 +64,11 @@ const putUser = async (id = 5, body = null, options = {}) => {
     agent.set('Authorization', `Bearer ${options.token}`);
   }
   return agent.send(body);
+};
+
+const readFileasBase64 = (file = 'test-png.png') => {
+  const filePath = path.join('.', '__tests__', 'resources', file);
+  return fs.readFileSync(filePath, { encoding: 'base64' });
 };
 
 describe('User update', () => {
@@ -134,8 +150,7 @@ describe('User update', () => {
     expect(response.status).toBe(403);
   });
   it('save the user image when update contains image as base64', async () => {
-    const filePath = path.join('.', '__tests__', 'resources', 'test-png.png');
-    const fileInBase64 = fs.readFileSync(filePath, { encoding: 'base64' });
+    const fileInBase64 = readFileasBase64();
     const savedUser = await addUser();
     const validUpdate = { username: 'user1-updated', image: fileInBase64 };
     await putUser(savedUser.id, validUpdate, {
@@ -147,4 +162,202 @@ describe('User update', () => {
     const inDBUser = await User.findOne({ where: { id: savedUser.id } });
     expect(inDBUser.image).toBeTruthy();
   });
+
+  it('return success body having only id, username, email and image', async () => {
+    const fileInBase64 = readFileasBase64();
+    const savedUser = await addUser();
+    const validUpdate = { username: 'user1-updated', image: fileInBase64 };
+    const response = await putUser(savedUser.id, validUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+    expect(Object.keys(response.body)).toEqual([
+      'id',
+      'username',
+      'email',
+      'image'
+    ]);
+  });
+
+  it('save the user image to upload folder and storefilename in user when update image', async () => {
+    const fileInBase64 = readFileasBase64();
+    const savedUser = await addUser();
+    const validUpdate = { username: 'user1-updated', image: fileInBase64 };
+    await putUser(savedUser.id, validUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+    const inDBUser = await User.findOne({ where: { id: savedUser.id } });
+    const proImagePath = path.join(profileDirectory, inDBUser.image);
+    expect(fs.existsSync(proImagePath)).toBe(true);
+  });
+  it('remove the old images after user upload new one', async () => {
+    const fileInBase64 = readFileasBase64();
+    const savedUser = await addUser();
+    const validUpdate = { username: 'user1-updated', image: fileInBase64 };
+    const response = await putUser(savedUser.id, validUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+
+    await putUser(savedUser.id, validUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+    const firstImage = response.body.image;
+
+    const proImagePath = path.join(profileDirectory, firstImage);
+    expect(fs.existsSync(proImagePath)).toBe(false);
+  });
+
+  it.each`
+    field         | value             | expectedMessage
+    ${'username'} | ${null}           | ${'Username cannot be null'}
+    ${'username'} | ${'use'}          | ${'Username must have min 4 and max 32 characters'}
+    ${'username'} | ${'a'.repeat(33)} | ${'Username must have min 4 and max 32 characters'}
+  `(
+    'returns $expectedMessage when $field is $value',
+    async ({ expectedMessage, value }) => {
+      const savedUser = await addUser();
+      const invalidUpdate = { username: value };
+      const response = await putUser(savedUser.id, invalidUpdate, {
+        auth: {
+          email: savedUser.email,
+          password: 'P4ssword'
+        }
+      });
+      expect(response.status).toBe(400);
+      expect(response.body.validationErrors.username).toBe(expectedMessage);
+    }
+  );
+
+  it('return 200 when image size is 2 mb', async () => {
+    const testPng = readFileasBase64();
+    const pngByte = Buffer.from(testPng, 'base64').length;
+    const twoMB = 1024 * 1024 * 2;
+    const filling = 'a'.repeat(twoMB - pngByte);
+    const fillingBase64 = Buffer.from(filling).toString('base64');
+    const savedUser = await addUser();
+    const validUpdate = {
+      username: 'user1-updated',
+      image: testPng + fillingBase64
+    };
+    const response = await putUser(savedUser.id, validUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+    expect(response.status).toBe(200);
+  });
+  it('return 400 when image size exceeds 2 mb', async () => {
+    const fileWithSizeExceed2MB = 'a'.repeat(1024 * 1024 * 2) + 'a';
+    const base64 = Buffer.from(fileWithSizeExceed2MB).toString('base64');
+    const savedUser = await addUser();
+    const invalidUpdate = { username: 'user1-updated', image: base64 };
+    const response = await putUser(savedUser.id, invalidUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+    expect(response.status).toBe(400);
+  });
+  it('keep the old image after use only updates username', async () => {
+    const fileInBase64 = readFileasBase64();
+    const savedUser = await addUser();
+    const validUpdate = { username: 'user1-updated', image: fileInBase64 };
+    const response = await putUser(savedUser.id, validUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+
+    await putUser(
+      savedUser.id,
+      { username: 'user1-updated2' },
+      {
+        auth: {
+          email: savedUser.email,
+          password: 'P4ssword'
+        }
+      }
+    );
+    const firstImage = response.body.image;
+
+    const proImagePath = path.join(profileDirectory, firstImage);
+    expect(fs.existsSync(proImagePath)).toBe(true);
+
+    const userInDb = await User.findOne({ where: { id: savedUser.id } });
+    expect(userInDb.image).toBe(firstImage);
+  });
+
+  it('return error message when image size exceeds 2 mb', async () => {
+    const fileWithSizeExceed2MB = 'a'.repeat(1024 * 1024 * 2) + 'a';
+    const base64 = Buffer.from(fileWithSizeExceed2MB).toString('base64');
+    const savedUser = await addUser();
+    const invalidUpdate = { username: 'user1-updated', image: base64 };
+    const response = await putUser(savedUser.id, invalidUpdate, {
+      auth: {
+        email: savedUser.email,
+        password: 'P4ssword'
+      }
+    });
+    expect(response.body.validationErrors.image).toBe(
+      'Your profile image can not be larger than 2 Mb'
+    );
+  });
+
+  it.each`
+    file              | status
+    ${'test-gif.gif'} | ${400}
+    ${'test-pdf.pdf'} | ${400}
+    ${'test-txt.txt'} | ${400}
+    ${'test-png.png'} | ${200}
+    ${'test-jpg.jpg'} | ${200}
+  `(
+    'return $status when uploading $file as image',
+    async ({ file, status }) => {
+      const fileInBase64 = readFileasBase64(file);
+      const savedUser = await addUser();
+      const updateBody = { username: 'user1-updated', image: fileInBase64 };
+      const response = await putUser(savedUser.id, updateBody, {
+        auth: {
+          email: savedUser.email,
+          password: 'P4ssword'
+        }
+      });
+      expect(response.status).toBe(status);
+    }
+  );
+
+  it.each`
+    file              | message
+    ${'test-gif.gif'} | ${'Unsupported image file'}
+    ${'test-pdf.pdf'} | ${'Unsupported image file'}
+    ${'test-txt.txt'} | ${'Unsupported image file'}
+  `(
+    'return $message when uploading $file as image',
+    async ({ file, message }) => {
+      const fileInBase64 = readFileasBase64(file);
+      const savedUser = await addUser();
+      const updateBody = { username: 'user1-updated', image: fileInBase64 };
+      const response = await putUser(savedUser.id, updateBody, {
+        auth: {
+          email: savedUser.email,
+          password: 'P4ssword'
+        }
+      });
+      expect(response.body.validationErrors.image).toBe(message);
+    }
+  );
 });

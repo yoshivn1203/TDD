@@ -34,7 +34,8 @@ router.post(
     res.send({
       id: user.id,
       username: user.username,
-      token: await TokenService.createToken(user)
+      token: await TokenService.createToken(user),
+      image: user.image
     });
   }
 );
